@@ -2,24 +2,20 @@
 var dataChannelLog = document.getElementById('data-channel'),
 	iceConnectionLog = document.getElementById('ice-connection-state'),
 	iceGatheringLog = document.getElementById('ice-gathering-state'),
-	signalingLog = document.getElementById('signaling-state');
+	signalingLog = document.getElementById('signaling-state'),
+	userEmail = document.getElementById('email');
 
 
 // data channel
 var dc = null, dcInterval = null;
-var peer_id = '1-device'; 
+var peer_id = '02c580a8-a069-11ea-9c79-5ce0c57f2547'; 
 
 
 var socket = null 
-//const SIGNAL_SERVER = 'http://localhost:5000'
-const SIGNAL_SERVER = 'https://mighty-dawn-28778.herokuapp.com/'
+const SIGNAL_SERVER = 'http://localhost:5000'
+//const SIGNAL_SERVER = 'https://mighty-dawn-28778.herokuapp.com/'
 
 
-function init() {
-	socket = io(SIGNAL_SERVER)
-	socket.emit('set_clientId',{'clientId':'1-user'})
-	//todo if socket is null, close option to join 
-}
 
 function createPeerConnection(){
 	var config = {
@@ -40,6 +36,13 @@ function createPeerConnection(){
 
 	pc.addEventListener('iceconnectionstatechange', function() {
 		iceConnectionLog.textContent += ' -> ' + pc.iceConnectionState;
+		if(pc.iceConnectionState === "connected"){
+			socket.emit('SessionSuccess', {
+				user: userEmail.value,
+				device: peer_id
+			})
+		}
+
 	}, false);
 	iceConnectionLog.textContent = pc.iceConnectionState;
 
@@ -84,30 +87,42 @@ function negotiate(pc) {
 			})                                  
 		//-------------------------------------------// 
 		.then(()=>{
-			console.log(pc.localDescription)
 			var offer = pc.localDescription
 
 			document.getElementById('offer-sdp').textContent = offer.sdp; 
-			socket.emit('relaySessionDescription', JSON.stringify({
+			socket.emit('relaySessionDescription', {
 				sdp: offer.sdp, 
 				type: offer.type,
-				peer_id: peer_id
-			}))
+				destId: peer_id
+			})
 		})
 	   
 	socket.on('RTCSessionDescription', (data)=>{
-	   config = JSON.parse(data)
-	   document.getElementById('answer-sdp').textContent = config.sdp;
-	   pc.setRemoteDescription(config)
+		console.log(data)
+	   document.getElementById('answer-sdp').textContent = data.sdp;
+	   pc.setRemoteDescription(data)
 	})
+
+
 }
 
 
 
 function start() {
+	stop = false
+
+	socket = io(SIGNAL_SERVER)
+	socket.emit('userId',{'email':userEmail.value})
+	//todo if socket is null, close option to join 
+
+	socket.on('Disconnect',(data) =>{
+		alert(data.msg)
+		stop = true 
+	})
+
+	if( ! stop){
 
 	pc = createPeerConnection();
-
 	pc.addTransceiver('video', {direction: 'recvonly'})
 
 
@@ -159,7 +174,10 @@ function start() {
 	
 
 
+
+	}
+	
+
+
 }
 
-
-document.onload = init();
